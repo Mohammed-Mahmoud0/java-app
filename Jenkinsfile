@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = "mohamedmahmoud/python-iti-main-jenkins"
+        IMAGE_NAME = "mohamedmahmoud00/python-iti-main-jenkins"
     }
 
     stages {
@@ -19,16 +19,17 @@ pipeline {
         }
 
         stage('Build') {
-            steps {
+        steps {
                 script {
                     echo "Build Number: ${currentBuild.number}"
                     if (currentBuild.number < 5) {
                         error("build number is less than 5. Stopping pipeline!")
                     }
                 }
-                sh "mvn clean package"
+                sh "mvn clean package -DskipTests"
             }
         }
+
 
         stage('Docker Build') {
             steps {

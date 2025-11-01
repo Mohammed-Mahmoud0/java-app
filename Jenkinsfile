@@ -1,60 +1,86 @@
 pipeline {
-    agent any
+    agent { label 'node1' }
     
+    tools {
+        maven 'Maven-3.8.9'
+        jdk 'java'
+    }
+
     environment {
-        IMAGE_NAME = "my-local-app"
-        BUILD_COUNT_THRESHOLD = 5
+        IMAGE_NAME = "mohamedmahmoud/python-iti-main-jenkins"
     }
 
     stages {
-        
-        stage('Code') {
+
+        stage('Checkout') {
             steps {
-                script {
-                    echo "Checking build number..."
-                    if (env.BUILD_NUMBER.toInteger() < BUILD_COUNT_THRESHOLD.toInteger()) {
-                        error "Build number (${env.BUILD_NUMBER}) is less than ${BUILD_COUNT_THRESHOLD}. Failing the build."
-                    }
-                }
+                git branch: 'main', url: 'https://github.com/Mohammed-Mahmoud0/java-app'
             }
         }
-        
+
         stage('Build') {
             steps {
-                echo 'Building Java application...'
-                sh 'mvn clean package -DskipTests'
+                script {
+                    echo "Build Number: ${currentBuild.number}"
+                    if (currentBuild.number < 5) {
+                        error("build number is less than 5. Stopping pipeline!")
+                    }
+                }
+                sh "mvn clean package"
             }
         }
-        
-        stage('Build Docker Image') {
+
+        stage('Docker Build') {
             steps {
-                echo 'Building Docker image...'
                 sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ."
             }
         }
-        
-        stage('Deploy') {
-            steps {
-                script {
-                    echo "Deploying Docker container..."
-                    
-                    // Stop and remove previous container if exists
-                    sh "docker stop ${IMAGE_NAME} || true"
-                    sh "docker rm ${IMAGE_NAME} || true"
-                    
-                    // Run fresh container
-                    sh "docker run -d --name ${IMAGE_NAME} -p 8080:8080 ${IMAGE_NAME}:${BUILD_NUMBER}"
-                }
+
+    stage('Docker Login') {
+        steps {
+            withCredentials([string(credentialsId: 'dockerhub-pass', variable: 'DOCKERHUB_PASS')]) {
+                sh """
+                echo "$DOCKERHUB_PASS" | docker login -u mohamedmahmoud00 --password-stdin || exit 1
+                """
             }
         }
     }
-    
+
+
+        stage('Docker Push') {
+            steps {
+                sh "docker push ${IMAGE_NAME}:${BUILD_NUMBER}"
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sh """
+                echo "Deploying container..."
+
+                # Stop & remove old container if exists
+                docker stop java-app || true
+                docker rm java-app || true
+
+                # Run new container on port 9000 instead of 8080
+                docker run -d -p 9000:8080 --name java-app ${IMAGE_NAME}:${BUILD_NUMBER}
+
+                echo "✅ App is running on: http://<your-server-ip>:9000"
+                """
+            }
+        }
+    }
+
     post {
         success {
-            echo "Deployment was successful!"
+            echo "Pipeline finished successfully!"
         }
         failure {
-            echo "Build or deployment failed. Please check logs."
+            echo "ipeline failed!"
+        }
+        always {
+            echo " Cleaning workspace..."
+            cleanWs()
         }
     }
 }
